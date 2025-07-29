@@ -25,5 +25,5 @@ jobs:
 
     - name: Run script
       env:
-        POWER_BI_PUSH_URL: ${{ secrets.POWERBI_URL }}
+        POWERBI_URL: ${{ secrets.POWERBI_URL }}
       run: python main.py
