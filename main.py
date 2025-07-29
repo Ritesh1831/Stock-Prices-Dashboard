@@ -1,30 +1,40 @@
 import yfinance as yf
 import pandas as pd
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 import math
 import os
 
 # === CONFIG ===
 symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'TSLA', 'NVDA']
-start_date = '2022-07-01'
-end_date = datetime.today().strftime('%Y-%m-%d')
 
-# === Get Power BI push URL from environment variable ===
+# === Use yesterday as default ===
+today = datetime.today().date()
+yesterday = today - timedelta(days=1)
+
+start_date = yesterday.strftime('%Y-%m-%d')
+end_date = today.strftime('%Y-%m-%d')
+
+# === Get Power BI push URL from secret ===
 POWER_BI_PUSH_URL = os.environ['POWERBI_URL']
+
+print(f"Fetching data for: {start_date}")
 
 # === Download ===
 data = yf.download(
     symbols,
     start=start_date,
     end=end_date,
-    group_by='ticker'
+    group_by='ticker',
+    progress=False
 )
 
-# === Combine into tidy DataFrame ===
+# === Combine ===
 frames = []
 for symbol in symbols:
     df = data[symbol].copy()
+    if df.empty:
+        continue  # skip if no data for this ticker
     df = df.reset_index()
     df['Symbol'] = symbol
     df = df.rename(columns={
@@ -38,17 +48,25 @@ for symbol in symbols:
     df = df[['Symbol', 'date', 'open', 'high', 'low', 'close', 'volume']]
     frames.append(df)
 
-final_df = pd.concat(frames)
+if not frames:
+    print("✅ No new market data found. Market may have been closed.")
+    exit()
 
-# Sort by date & symbol
+final_df = pd.concat(frames)
 final_df = final_df.sort_values(by=['date', 'Symbol']).reset_index(drop=True)
 
 print(final_df.head())
 
-# === Save backup CSV ===
+# === Append new data to local CSV log ===
 save_path = "stock_data.csv"
-final_df.to_csv(save_path, index=False)
-print(f"✅ Saved latest data to {save_path}")
+
+# If file does not exist, write header
+if not os.path.exists(save_path):
+    final_df.to_csv(save_path, index=False)
+else:
+    final_df.to_csv(save_path, mode='a', header=False, index=False)
+
+print(f"✅ Appended new rows to {save_path}")
 
 # === Prepare payload ===
 payload = []
@@ -77,4 +95,4 @@ for i in range(num_chunks):
     else:
         print(f"❌ Failed to push chunk {i + 1}/{num_chunks}: {response.text}")
 
-print("✅ All rows pushed to Power BI!")
+print("✅ All new rows pushed to Power BI!")
