@@ -2,8 +2,8 @@ name: Run Python Script Daily
 
 on:
   schedule:
-    - cron: '30 3 * * *'   # Runs every day at 00:00 UTC
-  workflow_dispatch:       # Allow manual run from GitHub UI
+    - cron: '30 3 * * *'   
+  workflow_dispatch:       
 
 jobs:
   run-script:
@@ -25,5 +25,5 @@ jobs:
 
     - name: Run script
       env:
-        POWER_BI_PUSH_URL: ${{ secrets.POWER_BI_PUSH_URL }}
+        POWER_BI_PUSH_URL: ${{ secrets.POWERBI_URL }}
       run: python main.py
