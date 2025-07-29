@@ -1,42 +1,37 @@
 import yfinance as yf
 import pandas as pd
 import requests
-from datetime import datetime, timedelta
-import math
+from datetime import datetime
 import os
 
-
+# === CONFIG ===
 symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'TSLA', 'NVDA']
 
+# === TODAY ===
+today = datetime.today().strftime('%Y-%m-%d')
+print(f"Fetching data for: {today}")
 
-today = datetime.today().date()
-yesterday = today - timedelta(days=1)
-
-start_date = yesterday.strftime('%Y-%m-%d')
-end_date = today.strftime('%Y-%m-%d')
-
-
+# === Get Power BI push URL from environment ===
 POWERBI_URL = os.environ['POWERBI_URL']
 
-print(f"Fetching data for: {start_date}")
-
-
+# === Download only today's data ===
 data = yf.download(
     symbols,
-    start=start_date,
-    end=end_date,
+    start=today,
+    end=today,
     group_by='ticker',
     progress=False
 )
 
-
 frames = []
 for symbol in symbols:
-    df = data[symbol].copy()
-    if df.empty:
-        continue  
-    df = df.reset_index()
+    df = data[symbol].copy().reset_index()
     df['Symbol'] = symbol
+
+    # Add quarter & quarter_year
+    df['Quarter'] = df['Date'].dt.quarter
+    df['Quarter_Year'] = 'Q' + df['Quarter'].astype(str) + ' ' + df['Date'].dt.year.astype(str)
+
     df = df.rename(columns={
         'Date': 'date',
         'Open': 'open',
@@ -45,54 +40,44 @@ for symbol in symbols:
         'Close': 'close',
         'Volume': 'volume'
     })
-    df = df[['Symbol', 'date', 'open', 'high', 'low', 'close', 'volume']]
-    frames.append(df)
 
-if not frames:
-    print("✅ No new market data found. Market may have been closed.")
-    exit()
+    df = df[['Symbol', 'date', 'open', 'high', 'low', 'close', 'volume', 'Quarter', 'Quarter_Year']]
+    frames.append(df)
 
 final_df = pd.concat(frames)
 final_df = final_df.sort_values(by=['date', 'Symbol']).reset_index(drop=True)
 
 print(final_df.head())
 
+# ✅ Save backup CSV
+final_df.to_csv("stock_data_today.csv", index=False)
+print("✅ Saved to stock_data_today.csv")
 
-save_path = "stock_data.csv"
-
-
-if not os.path.exists(save_path):
-    final_df.to_csv(save_path, index=False)
-else:
-    final_df.to_csv(save_path, mode='a', header=False, index=False)
-
-print(f"✅ Appended new rows to {save_path}")
-
-
+# ✅ Prepare JSON payload (date as YYYY-MM-DD)
 payload = []
 for _, row in final_df.iterrows():
     payload.append({
         "symbol": row['Symbol'],
-        "date": row['date'].isoformat(),
+        "date": row['date'].strftime('%Y-%m-%d'),
         "open": float(row['open']),
         "high": float(row['high']),
         "low": float(row['low']),
         "close": float(row['close']),
-        "volume": int(row['volume'])
+        "volume": int(row['volume']),
+        "quarter": int(row['Quarter']),
+        "quarter_year": row['Quarter_Year']
     })
 
-print(f"Total rows to push: {len(payload)}")
+print(f"Pushing {len(payload)} rows...")
 
-
+# ✅ Push in chunks
 chunk_size = 1000
-num_chunks = math.ceil(len(payload) / chunk_size)
-
-for i in range(num_chunks):
-    chunk = payload[i * chunk_size : (i + 1) * chunk_size]
-    response = requests.post(POWERBI_URL, json=chunk)
-    if response.status_code == 200:
-        print(f"✅ Successfully pushed chunk {i + 1}/{num_chunks} ({len(chunk)} rows)")
+for i in range(0, len(payload), chunk_size):
+    chunk = payload[i:i + chunk_size]
+    r = requests.post(POWERBI_URL, json=chunk)
+    if r.status_code == 200:
+        print(f"✅ Chunk {i//chunk_size + 1} pushed")
     else:
-        print(f"❌ Failed to push chunk {i + 1}/{num_chunks}: {response.text}")
+        print(f"❌ Failed chunk {i//chunk_size + 1}: {r.text}")
 
-print("✅ All new rows pushed to Power BI!")
+print("✅ All done.")
