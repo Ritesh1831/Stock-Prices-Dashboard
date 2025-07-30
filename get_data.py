@@ -19,7 +19,6 @@ for symbol in symbols:
     df = df.reset_index()
     df['Symbol'] = symbol
 
-    # New time columns
     df['Year'] = df['Date'].dt.year
     df['Month'] = df['Date'].dt.month
     df['Month_Name'] = df['Date'].dt.month_name()
