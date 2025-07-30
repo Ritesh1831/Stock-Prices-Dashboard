@@ -13,7 +13,7 @@ today = datetime.today().strftime('%Y-%m-%d')
 print(f"Fetching data for: {today}")
 
 # === Get Power BI push URL from environment ===
-POWERBI_URL = os.environ['POWERBI_URL']
+POWER_BI_URL = os.environ['POWERBI_URL']
 
 # === Download only today's data ===
 data = yf.download(
@@ -35,7 +35,7 @@ for symbol in symbols:
     df['Month_Name'] = df['Date'].dt.strftime('%B')
     df['Quarter'] = df['Date'].dt.quarter
     df['Quarter_Year'] = df['Year'].astype(str) + ' Q' + df['Quarter'].astype(str)
-    df['Quarter_Year_Sort'] = df['Year'].astype(str) + df['Quarter'].astype(str)
+    df['Quarter_Year_Sort'] = (df['Year'].astype(str) + df['Quarter'].astype(str)).astype(int)
 
     df = df.rename(columns={
         'Date': 'date',
@@ -63,36 +63,37 @@ print("✅ Saved to stock_data_today.csv")
 rows = []
 for _, row in final_df.iterrows():
     rows.append({
-        "symbol": row['Symbol'],
+        "Symbol": row['Symbol'],
         "date": row['date'].strftime('%Y-%m-%d'),
         "open": float(row['open']),
         "high": float(row['high']),
         "low": float(row['low']),
         "close": float(row['close']),
         "volume": int(row['volume']),
-        "year": int(row['Year']),
-        "month": int(row['Month']),
-        "month_name": row['Month_Name'],
-        "quarter": int(row['Quarter']),
-        "quarter_year": row['Quarter_Year'],
-        "quarter_year_sort": row['Quarter_Year_Sort']
+        "Year": int(row['Year']),
+        "Month": int(row['Month']),
+        "Month_Name": row['Month_Name'],
+        "Quarter": int(row['Quarter']),
+        "Quarter_Year": row['Quarter_Year'],
+        "Quarter_Year_Sort": int(row['Quarter_Year_Sort'])
     })
 
 print(f"Pushing {len(rows)} rows...")
 
 # ✅ Push in batches
-batch_size = 100  # adjust if needed
-
-for i in range(0, len(rows), batch_size):
-    batch = rows[i:i + batch_size]
+batch_size = 50
+for start in range(0, len(rows), batch_size):
+    end = start + batch_size
+    batch_rows = rows[start:end]
+    json_data = json.dumps({"rows": batch_rows})
     response = requests.post(
-        POWERBI_URL,
+        POWER_BI_URL,
         headers={"Content-Type": "application/json"},
-        data=json.dumps(batch)
+        data=json_data
     )
     if response.status_code == 200:
-        print(f"✅ Batch {i // batch_size + 1} pushed successfully.")
+        print(f"✅ Batch {start // batch_size + 1} pushed successfully.")
     else:
-        print(f"❌ Error pushing batch {i // batch_size + 1}: {response.status_code} {response.text}")
+        print(f"❌ Error pushing batch {start // batch_size + 1}: {response.status_code} {response.text}")
 
 print("✅ All done.")
