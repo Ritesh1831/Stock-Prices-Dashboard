@@ -54,7 +54,7 @@ print(f"✅ Saved data locally to: {save_path}")
 
 # === PUSH TO POWER BI ===
 # Replace with your actual Push URL!
-POWER_BI_URL = "https://api.powerbi.com/beta/841e991f-1730-433f-82ba-ea7895004ffa/datasets/cc92bb3d-4e62-4269-8443-4ebd08ceaa24/rows?experience=power-bi&key=ET9MY5TFTJisTUckMtAxqoXMS3j3wtuodWSCmGxvcF2pXxih%2FcBD389mr7H9rnToMtOyddMDiBwIeDHZqnD0cQ%3D%3D"
+POWERBI_URL = "MY_POWER_BI_URL"
 
 # Convert date to string for JSON
 final_df['date'] = final_df['date'].astype(str)
@@ -70,7 +70,7 @@ for start in range(0, len(rows), batch_size):
     batch = final_df.iloc[start:end]
     json_data = json.dumps({ "rows": json.loads(batch.to_json(orient='records', date_format='iso')) })
     response = requests.post(
-        POWER_BI_URL,
+        POWERBI_URL,
         headers={"Content-Type": "application/json"},
         data=json_data
     )
