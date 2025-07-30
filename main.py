@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 from datetime import datetime
 import os
+import json
 
 # === CONFIG ===
 symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'TSLA', 'NVDA']
@@ -28,9 +29,13 @@ for symbol in symbols:
     df = data[symbol].copy().reset_index()
     df['Symbol'] = symbol
 
-    # Add quarter & quarter_year
+    # Add Year, Month, Month_Name, Quarter & Quarter_Year, Quarter_Year_Sort
+    df['Year'] = df['Date'].dt.year
+    df['Month'] = df['Date'].dt.month
+    df['Month_Name'] = df['Date'].dt.strftime('%B')
     df['Quarter'] = df['Date'].dt.quarter
-    df['Quarter_Year'] = 'Q' + df['Quarter'].astype(str) + ' ' + df['Date'].dt.year.astype(str)
+    df['Quarter_Year'] = df['Year'].astype(str) + ' Q' + df['Quarter'].astype(str)
+    df['Quarter_Year_Sort'] = df['Year'].astype(str) + df['Quarter'].astype(str)
 
     df = df.rename(columns={
         'Date': 'date',
@@ -41,7 +46,8 @@ for symbol in symbols:
         'Volume': 'volume'
     })
 
-    df = df[['Symbol', 'date', 'open', 'high', 'low', 'close', 'volume', 'Quarter', 'Quarter_Year']]
+    df = df[['Symbol', 'date', 'open', 'high', 'low', 'close', 'volume',
+             'Year', 'Month', 'Month_Name', 'Quarter', 'Quarter_Year', 'Quarter_Year_Sort']]
     frames.append(df)
 
 final_df = pd.concat(frames)
@@ -53,10 +59,10 @@ print(final_df.head())
 final_df.to_csv("stock_data_today.csv", index=False)
 print("✅ Saved to stock_data_today.csv")
 
-# ✅ Prepare JSON payload (date as YYYY-MM-DD)
-payload = []
+# ✅ Prepare JSON payload with ALL columns
+rows = []
 for _, row in final_df.iterrows():
-    payload.append({
+    rows.append({
         "symbol": row['Symbol'],
         "date": row['date'].strftime('%Y-%m-%d'),
         "open": float(row['open']),
@@ -64,20 +70,29 @@ for _, row in final_df.iterrows():
         "low": float(row['low']),
         "close": float(row['close']),
         "volume": int(row['volume']),
+        "year": int(row['Year']),
+        "month": int(row['Month']),
+        "month_name": row['Month_Name'],
         "quarter": int(row['Quarter']),
-        "quarter_year": row['Quarter_Year']
+        "quarter_year": row['Quarter_Year'],
+        "quarter_year_sort": row['Quarter_Year_Sort']
     })
 
-print(f"Pushing {len(payload)} rows...")
+print(f"Pushing {len(rows)} rows...")
 
-# ✅ Push in chunks
-chunk_size = 1000
-for i in range(0, len(payload), chunk_size):
-    chunk = payload[i:i + chunk_size]
-    r = requests.post(POWERBI_URL, json=chunk)
-    if r.status_code == 200:
-        print(f"✅ Chunk {i//chunk_size + 1} pushed")
+# ✅ Push in batches
+batch_size = 100  # adjust if needed
+
+for i in range(0, len(rows), batch_size):
+    batch = rows[i:i + batch_size]
+    response = requests.post(
+        POWERBI_URL,
+        headers={"Content-Type": "application/json"},
+        data=json.dumps(batch)
+    )
+    if response.status_code == 200:
+        print(f"✅ Batch {i // batch_size + 1} pushed successfully.")
     else:
-        print(f"❌ Failed chunk {i//chunk_size + 1}: {r.text}")
+        print(f"❌ Error pushing batch {i // batch_size + 1}: {response.status_code} {response.text}")
 
 print("✅ All done.")
