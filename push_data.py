@@ -4,7 +4,6 @@ from datetime import datetime
 import requests
 import json
 
-# === YOUR STOCK DATA ===
 symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'TSLA', 'NVDA']
 start_date = '2022-07-01'
 end_date = datetime.today().strftime('%Y-%m-%d')
@@ -22,7 +21,6 @@ for symbol in symbols:
     df = df.reset_index()
     df['Symbol'] = symbol
 
-    # Time columns
     df['Year'] = df['Date'].dt.year
     df['Month'] = df['Date'].dt.month
     df['Month_Name'] = df['Date'].dt.month_name()
@@ -47,23 +45,17 @@ for symbol in symbols:
 final_df = pd.concat(frames)
 final_df = final_df.sort_values(by=['date', 'Symbol']).reset_index(drop=True)
 
-# === Save locally ===
 save_path = "stock_data.csv"
 final_df.to_csv(save_path, index=False)
 print(f"✅ Saved data locally to: {save_path}")
 
-# === PUSH TO POWER BI ===
-# Replace with your actual Push URL!
 POWERBI_URL = "MY_POWER_BI_URL"
 
-# Convert date to string for JSON
 final_df['date'] = final_df['date'].astype(str)
 
-# Convert dataframe to records
 rows = final_df.to_dict(orient='records')
 
-# Split into chunks if needed (Power BI limit is 10,000 rows per push)
-# Example: break into chunks of 500 rows or less
+
 batch_size = 50
 for start in range(0, len(rows), batch_size):
     end = start + batch_size
