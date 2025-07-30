@@ -5,17 +5,13 @@ from datetime import datetime
 import os
 import json
 
-# === CONFIG ===
 symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'TSLA', 'NVDA']
 
-# === TODAY ===
 today = datetime.today().strftime('%Y-%m-%d')
 print(f"Fetching data for: {today}")
 
-# === Get Power BI push URL from environment ===
-POWER_BI_URL = os.environ['POWERBI_URL']
+POWERBI_URL = os.environ['POWERBI_URL']
 
-# === Download only today's data ===
 data = yf.download(
     symbols,
     start=today,
@@ -29,7 +25,6 @@ for symbol in symbols:
     df = data[symbol].copy().reset_index()
     df['Symbol'] = symbol
 
-    # Add Year, Month, Month_Name, Quarter & Quarter_Year, Quarter_Year_Sort
     df['Year'] = df['Date'].dt.year
     df['Month'] = df['Date'].dt.month
     df['Month_Name'] = df['Date'].dt.strftime('%B')
@@ -55,11 +50,9 @@ final_df = final_df.sort_values(by=['date', 'Symbol']).reset_index(drop=True)
 
 print(final_df.head())
 
-# ✅ Save backup CSV
 final_df.to_csv("stock_data_today.csv", index=False)
 print("✅ Saved to stock_data_today.csv")
 
-# ✅ Prepare JSON payload with ALL columns
 rows = []
 for _, row in final_df.iterrows():
     rows.append({
@@ -80,14 +73,13 @@ for _, row in final_df.iterrows():
 
 print(f"Pushing {len(rows)} rows...")
 
-# ✅ Push in batches
 batch_size = 50
 for start in range(0, len(rows), batch_size):
     end = start + batch_size
     batch_rows = rows[start:end]
     json_data = json.dumps({"rows": batch_rows})
     response = requests.post(
-        POWER_BI_URL,
+        POWERBI_URL,
         headers={"Content-Type": "application/json"},
         data=json_data
     )
