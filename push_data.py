@@ -1,7 +1,10 @@
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
+import requests
+import json
 
+# === YOUR STOCK DATA ===
 symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'TSLA', 'NVDA']
 start_date = '2022-07-01'
 end_date = datetime.today().strftime('%Y-%m-%d')
@@ -19,7 +22,7 @@ for symbol in symbols:
     df = df.reset_index()
     df['Symbol'] = symbol
 
-    # New time columns
+    # Time columns
     df['Year'] = df['Date'].dt.year
     df['Month'] = df['Date'].dt.month
     df['Month_Name'] = df['Date'].dt.month_name()
@@ -44,9 +47,39 @@ for symbol in symbols:
 final_df = pd.concat(frames)
 final_df = final_df.sort_values(by=['date', 'Symbol']).reset_index(drop=True)
 
+# === Save locally ===
 save_path = "stock_data.csv"
 final_df.to_csv(save_path, index=False)
 print(f"✅ Saved data locally to: {save_path}")
+
+# === PUSH TO POWER BI ===
+# Replace with your actual Push URL!
+POWER_BI_URL = "https://api.powerbi.com/beta/841e991f-1730-433f-82ba-ea7895004ffa/datasets/cc92bb3d-4e62-4269-8443-4ebd08ceaa24/rows?experience=power-bi&key=ET9MY5TFTJisTUckMtAxqoXMS3j3wtuodWSCmGxvcF2pXxih%2FcBD389mr7H9rnToMtOyddMDiBwIeDHZqnD0cQ%3D%3D"
+
+# Convert date to string for JSON
+final_df['date'] = final_df['date'].astype(str)
+
+# Convert dataframe to records
+rows = final_df.to_dict(orient='records')
+
+# Split into chunks if needed (Power BI limit is 10,000 rows per push)
+# Example: break into chunks of 500 rows or less
+batch_size = 50
+for start in range(0, len(rows), batch_size):
+    end = start + batch_size
+    batch = final_df.iloc[start:end]
+    json_data = json.dumps({ "rows": json.loads(batch.to_json(orient='records', date_format='iso')) })
+    response = requests.post(
+        POWER_BI_URL,
+        headers={"Content-Type": "application/json"},
+        data=json_data
+    )
+    if response.status_code == 200:
+        print(f"✅ Batch {start // batch_size + 1} pushed successfully")
+    else:
+        print(f"❌ Error pushing batch {start // batch_size + 1}: {response.status_code} {response.text}")
+
+
 
 print(final_df.head())
 print(final_df.info())
